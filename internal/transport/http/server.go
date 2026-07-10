@@ -15,17 +15,27 @@ import (
 func NewHandler(_ *config.Config, eps endpoint.Endpoints, logger *slog.Logger) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, http.StatusOK, eps.Discovery(r.Context()))
+		resp, err := eps.Discovery(r.Context(), struct{}{})
+		if err != nil {
+			writeError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, resp)
 	})
 	mux.HandleFunc("/jwks.json", func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, http.StatusOK, eps.JWKS(r.Context()))
+		resp, err := eps.JWKS(r.Context(), struct{}{})
+		if err != nil {
+			writeError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, resp)
 	})
 	mux.HandleFunc("/authorize", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			writeError(w, &service.HTTPError{Status: http.StatusMethodNotAllowed, Code: "method_not_allowed", Message: "method not allowed"})
 			return
 		}
-		resp, err := eps.Authorize(r.Context(), service.AuthorizeRequest{
+		respAny, err := eps.Authorize(r.Context(), service.AuthorizeRequest{
 			ClientID:            r.URL.Query().Get("client_id"),
 			RedirectURI:         r.URL.Query().Get("redirect_uri"),
 			ResponseType:        r.URL.Query().Get("response_type"),
@@ -38,6 +48,11 @@ func NewHandler(_ *config.Config, eps endpoint.Endpoints, logger *slog.Logger) h
 		})
 		if err != nil {
 			writeError(w, err)
+			return
+		}
+		resp, ok := respAny.(*service.AuthorizeResponse)
+		if !ok {
+			writeError(w, &service.HTTPError{Status: http.StatusInternalServerError, Code: "server_error", Message: "invalid authorize response"})
 			return
 		}
 		http.Redirect(w, r, resp.RedirectURL, http.StatusFound)
@@ -53,7 +68,7 @@ func NewHandler(_ *config.Config, eps endpoint.Endpoints, logger *slog.Logger) h
 			return
 		}
 		ctx := endpoint.WithRemoteAddr(r.Context(), r.RemoteAddr)
-		resp, err := eps.Token(ctx, service.TokenRequest{
+		respAny, err := eps.Token(ctx, service.TokenRequest{
 			GrantType:    r.PostForm.Get("grant_type"),
 			Code:         r.PostForm.Get("code"),
 			RedirectURI:  r.PostForm.Get("redirect_uri"),
@@ -66,13 +81,23 @@ func NewHandler(_ *config.Config, eps endpoint.Endpoints, logger *slog.Logger) h
 			writeError(w, err)
 			return
 		}
+		resp, ok := respAny.(*service.TokenResponse)
+		if !ok {
+			writeError(w, &service.HTTPError{Status: http.StatusInternalServerError, Code: "server_error", Message: "invalid token response"})
+			return
+		}
 		writeJSON(w, http.StatusOK, resp)
 	})
 	userinfoHandler := func(w http.ResponseWriter, r *http.Request) {
 		token := bearerToken(r)
-		resp, err := eps.UserInfo(r.Context(), token)
+		respAny, err := eps.UserInfo(r.Context(), token)
 		if err != nil {
 			writeError(w, err)
+			return
+		}
+		resp, ok := respAny.(map[string]any)
+		if !ok {
+			writeError(w, &service.HTTPError{Status: http.StatusInternalServerError, Code: "server_error", Message: "invalid userinfo response"})
 			return
 		}
 		writeJSON(w, http.StatusOK, resp)
@@ -86,8 +111,21 @@ func NewHandler(_ *config.Config, eps endpoint.Endpoints, logger *slog.Logger) h
 }
 
 func logoutHandler(w http.ResponseWriter, r *http.Request, eps endpoint.Endpoints) {
-	if redirect, ok := eps.Logout(r.Context(), r.URL.Query().Get("post_logout_redirect_uri"), r.URL.Query().Get("state")); ok {
-		http.Redirect(w, r, redirect, http.StatusFound)
+	respAny, err := eps.Logout(r.Context(), endpoint.LogoutRequest{
+		PostLogoutRedirectURI: r.URL.Query().Get("post_logout_redirect_uri"),
+		State:                 r.URL.Query().Get("state"),
+	})
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	resp, ok := respAny.(endpoint.LogoutResponse)
+	if !ok {
+		writeError(w, &service.HTTPError{Status: http.StatusInternalServerError, Code: "server_error", Message: "invalid logout response"})
+		return
+	}
+	if resp.OK {
+		http.Redirect(w, r, resp.Redirect, http.StatusFound)
 		return
 	}
 	w.Header().Set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'")

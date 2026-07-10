@@ -6,18 +6,29 @@ import (
 	"sync"
 	"time"
 
+	kitendpoint "github.com/go-kit/kit/endpoint"
 	"golang.org/x/time/rate"
 
 	"github.com/tpaulus/simple-idp/internal/service"
 )
 
 type Endpoints struct {
-	Authorize func(context.Context, service.AuthorizeRequest) (*service.AuthorizeResponse, error)
-	Token     func(context.Context, service.TokenRequest) (*service.TokenResponse, error)
-	UserInfo  func(context.Context, string) (map[string]any, error)
-	Discovery func(context.Context) map[string]any
-	JWKS      func(context.Context) any
-	Logout    func(context.Context, string, string) (string, bool)
+	Authorize kitendpoint.Endpoint
+	Token     kitendpoint.Endpoint
+	UserInfo  kitendpoint.Endpoint
+	Discovery kitendpoint.Endpoint
+	JWKS      kitendpoint.Endpoint
+	Logout    kitendpoint.Endpoint
+}
+
+type LogoutRequest struct {
+	PostLogoutRedirectURI string
+	State                 string
+}
+
+type LogoutResponse struct {
+	Redirect string
+	OK       bool
 }
 
 func New(svc *service.Service, authorizeRate, tokenRate *IPRateLimiter) Endpoints {
@@ -30,14 +41,41 @@ func New(svc *service.Service, authorizeRate, tokenRate *IPRateLimiter) Endpoint
 		token = tokenRate.WrapToken(token)
 	}
 	return Endpoints{
-		Authorize: authorize,
-		Token:     token,
-		UserInfo:  svc.UserInfo,
-		Discovery: svc.Discovery,
-		JWKS: func(ctx context.Context) any {
-			return svc.JWKS(ctx)
+		Authorize: func(ctx context.Context, request any) (any, error) {
+			req, ok := request.(service.AuthorizeRequest)
+			if !ok {
+				return nil, &service.HTTPError{Status: 500, Code: "server_error", Message: "invalid authorize request"}
+			}
+			return authorize(ctx, req)
 		},
-		Logout: svc.Logout,
+		Token: func(ctx context.Context, request any) (any, error) {
+			req, ok := request.(service.TokenRequest)
+			if !ok {
+				return nil, &service.HTTPError{Status: 500, Code: "server_error", Message: "invalid token request"}
+			}
+			return token(ctx, req)
+		},
+		UserInfo: func(ctx context.Context, request any) (any, error) {
+			req, ok := request.(string)
+			if !ok {
+				return nil, &service.HTTPError{Status: 500, Code: "server_error", Message: "invalid userinfo request"}
+			}
+			return svc.UserInfo(ctx, req)
+		},
+		Discovery: func(ctx context.Context, _ any) (any, error) {
+			return svc.Discovery(ctx), nil
+		},
+		JWKS: func(ctx context.Context, _ any) (any, error) {
+			return svc.JWKS(ctx), nil
+		},
+		Logout: func(ctx context.Context, request any) (any, error) {
+			req, ok := request.(LogoutRequest)
+			if !ok {
+				return nil, &service.HTTPError{Status: 500, Code: "server_error", Message: "invalid logout request"}
+			}
+			redirect, ok := svc.Logout(ctx, req.PostLogoutRedirectURI, req.State)
+			return LogoutResponse{Redirect: redirect, OK: ok}, nil
+		},
 	}
 }
 
