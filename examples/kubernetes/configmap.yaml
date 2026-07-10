@@ -1,0 +1,55 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: simple-idp-config
+data:
+  config.yaml: |
+    issuer: "https://auth.whitestar.systems"
+    endpoints:
+      authorization: "https://auth.whitestar.systems/authorize"
+      token: "https://auth.whitestar.systems/token"
+      userinfo: "https://auth.whitestar.systems/userinfo"
+      jwks: "https://auth.whitestar.systems/jwks.json"
+      logout: "https://auth.whitestar.systems/logout"
+    http:
+      trustedProxyCIDRs: ["10.42.0.0/16"]
+      readTimeout: "5s"
+      writeTimeout: "10s"
+      idleTimeout: "60s"
+      maxHeaderBytes: 16384
+    forwardedClientCert:
+      pemHeader: "X-Forwarded-Tls-Client-Cert"
+      infoHeader: "X-Forwarded-Tls-Client-Cert-Info"
+      requirePem: true
+      requireInfoCommonName: true
+      caPem: "ENV:CLIENT_CA_CRT"
+    oauth:
+      authorizationCodeTTL: "60s"
+      accessTokenTTL: "10m"
+      idTokenTTL: "10m"
+      issuerClockSkew: "30s"
+      requirePKCES256: false
+      allowClientSecretPost: true
+      maxOutstandingCodes: 512
+    signingKeys:
+      - keyID: "main-rs256"
+        algorithm: "RS256"
+        privateKeyPem: "ENV:OIDC_SIGNING_KEY"
+        active: true
+    clients:
+      - id: grafana
+        name: "Grafana"
+        secret: "ENV:GRAFANA_OIDC_CLIENT_SECRET"
+        redirectURIs: ["https://grafana.example.test/login/generic_oauth"]
+        postLogoutRedirectURIs: ["https://grafana.example.test/"]
+        allowedScopes: ["openid", "profile", "email"]
+    users:
+      - id: tom
+        subject: "user:tom"
+        email: "ENV:TOM_EMAIL"
+        name: "Tom Paulus"
+        preferredUsername: "tom"
+        emailVerified: true
+        certificateCommonNames: ["tom-laptop", "tom-iphone"]
+        claims:
+          groups: ["family"]

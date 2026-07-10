@@ -1,0 +1,45 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: simple-idp
+spec:
+  parentRefs:
+    - name: web
+  hostnames:
+    - auth.whitestar.systems
+  rules:
+    - matches:
+        - path:
+            type: Exact
+            value: /authorize
+      backendRefs:
+        - name: simple-idp
+          port: 80
+    - matches:
+        - path:
+            type: Exact
+            value: /.well-known/openid-configuration
+        - path:
+            type: Exact
+            value: /jwks.json
+        - path:
+            type: Exact
+            value: /token
+        - path:
+            type: Exact
+            value: /userinfo
+        - path:
+            type: Exact
+            value: /logout
+        - path:
+            type: Exact
+            value: /oidc/v1/end_session
+        - path:
+            type: Exact
+            value: /healthz
+        - path:
+            type: Exact
+            value: /readyz
+      backendRefs:
+        - name: simple-idp
+          port: 80
