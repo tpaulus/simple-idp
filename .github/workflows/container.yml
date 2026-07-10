@@ -2,6 +2,7 @@ name: container
 
 on:
   push:
+    branches: ['main']
     tags-ignore: ['v*']
 
 permissions:
