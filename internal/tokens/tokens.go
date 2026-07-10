@@ -2,6 +2,7 @@ package tokens
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	jose "github.com/go-jose/go-jose/v4"
@@ -128,12 +129,5 @@ func (m *Manager) VerifyAccessToken(raw string) (*AccessClaims, error) {
 }
 
 func joinScopes(scopes []string) string {
-	result := ""
-	for i, scope := range scopes {
-		if i > 0 {
-			result += " "
-		}
-		result += scope
-	}
-	return result
+	return strings.Join(scopes, " ")
 }
