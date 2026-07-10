@@ -98,7 +98,7 @@ func TestAuthenticatorRejectsSpoofedHeadersFromUntrustedRemote(t *testing.T) {
 
 func mustCIDRs(t *testing.T, values ...string) []*net.IPNet {
 	t.Helper()
-	var cidrs []*net.IPNet
+	cidrs := make([]*net.IPNet, 0, len(values))
 	for _, value := range values {
 		_, cidr, err := net.ParseCIDR(value)
 		if err != nil {

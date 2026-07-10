@@ -36,7 +36,7 @@ func main() {
 	}
 	logger := observability.NewLogger(logFormat)
 	if validateConfig {
-		fmt.Fprintln(os.Stdout, cfg.RedactedYAML())
+		_, _ = fmt.Fprintln(os.Stdout, cfg.RedactedYAML())
 		return
 	}
 	auth := certauth.New(certauth.Config{

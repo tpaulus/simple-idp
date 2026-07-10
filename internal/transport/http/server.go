@@ -12,7 +12,7 @@ import (
 	"github.com/tpaulus/simple-idp/internal/service"
 )
 
-func NewHandler(cfg *config.Config, eps endpoint.Endpoints, logger *slog.Logger) http.Handler {
+func NewHandler(_ *config.Config, eps endpoint.Endpoints, logger *slog.Logger) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, eps.Discovery(r.Context()))

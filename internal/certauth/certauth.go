@@ -154,7 +154,7 @@ func parsePairs(s string) (map[string]string, error) {
 				}
 			}
 			return nil, errors.New("unterminated quoted value")
-		} else {
+		} else { //nolint:revive // goto exits the if before this else for quoted values
 			for i < len(s) && s[i] != ';' && s[i] != ',' {
 				value.WriteByte(s[i])
 				i++

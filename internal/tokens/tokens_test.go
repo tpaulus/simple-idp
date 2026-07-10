@@ -30,16 +30,11 @@ func TestVerifyAccessToken(t *testing.T) {
 func loadTokenConfig(t *testing.T) *config.Config {
 	t.Helper()
 	_, _, caPEM := testutil.MustGenerateCA(t)
-	os.Setenv("CLIENT_CA_CRT", caPEM)
-	os.Setenv("OIDC_SIGNING_KEY", testutil.MustGenerateRSAPrivateKeyPEM(t))
-	os.Setenv("GRAFANA_OIDC_CLIENT_SECRET", "grafana-secret")
-	os.Setenv("TOM_EMAIL", "tom@example.test")
-	os.Setenv("MEL_EMAIL", "mel@example.test")
-	t.Cleanup(func() {
-		for _, name := range []string{"CLIENT_CA_CRT", "OIDC_SIGNING_KEY", "GRAFANA_OIDC_CLIENT_SECRET", "TOM_EMAIL", "MEL_EMAIL"} {
-			os.Unsetenv(name)
-		}
-	})
+	t.Setenv("CLIENT_CA_CRT", caPEM)
+	t.Setenv("OIDC_SIGNING_KEY", testutil.MustGenerateRSAPrivateKeyPEM(t))
+	t.Setenv("GRAFANA_OIDC_CLIENT_SECRET", "grafana-secret")
+	t.Setenv("TOM_EMAIL", "tom@example.test")
+	t.Setenv("MEL_EMAIL", "mel@example.test")
 	cfgText := `issuer: "https://auth.example.test"
 endpoints:
   authorization: "https://auth.example.test/authorize"

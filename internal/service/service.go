@@ -35,9 +35,12 @@ type HTTPError struct {
 
 func (e *HTTPError) Error() string { return e.Message }
 
-func badRequest(code, msg string) error { return &HTTPError{Status: http.StatusBadRequest, Code: code, Message: msg} }
-func unauthorized(msg string) error     { return &HTTPError{Status: http.StatusUnauthorized, Code: "unauthorized", Message: msg} }
-func tooManyRequests(msg string) error  { return &HTTPError{Status: http.StatusTooManyRequests, Code: "rate_limited", Message: msg} }
+func badRequest(code, msg string) error {
+	return &HTTPError{Status: http.StatusBadRequest, Code: code, Message: msg}
+}
+func unauthorized(msg string) error {
+	return &HTTPError{Status: http.StatusUnauthorized, Code: "unauthorized", Message: msg}
+}
 
 func New(cfg *config.Config, auth *certauth.Authenticator, codes *store.CodeStore, tm *tokens.Manager, now func() time.Time) *Service {
 	if now == nil {

@@ -185,17 +185,12 @@ func newTestApp(t *testing.T) testApp {
 	tomLaptop := testutil.MustGenerateClientCert(t, ca, caKey, "tom-laptop", time.Now().Add(-time.Minute), time.Now().Add(time.Hour), []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth})
 	tomIPhone := testutil.MustGenerateClientCert(t, ca, caKey, "tom-iphone", time.Now().Add(-time.Minute), time.Now().Add(time.Hour), []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth})
 	melLaptop := testutil.MustGenerateClientCert(t, ca, caKey, "mel-laptop", time.Now().Add(-time.Minute), time.Now().Add(time.Hour), []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth})
-	os.Setenv("CLIENT_CA_CRT", caPEM)
-	os.Setenv("OIDC_SIGNING_KEY", testutil.MustGenerateRSAPrivateKeyPEM(t))
-	os.Setenv("GRAFANA_OIDC_CLIENT_SECRET", "grafana-secret")
-	os.Setenv("ARGOCD_OIDC_CLIENT_SECRET", "argocd-secret")
-	os.Setenv("TOM_EMAIL", "tom@example.test")
-	os.Setenv("MEL_EMAIL", "mel@example.test")
-	t.Cleanup(func() {
-		for _, name := range []string{"CLIENT_CA_CRT", "OIDC_SIGNING_KEY", "GRAFANA_OIDC_CLIENT_SECRET", "ARGOCD_OIDC_CLIENT_SECRET", "TOM_EMAIL", "MEL_EMAIL"} {
-			os.Unsetenv(name)
-		}
-	})
+	t.Setenv("CLIENT_CA_CRT", caPEM)
+	t.Setenv("OIDC_SIGNING_KEY", testutil.MustGenerateRSAPrivateKeyPEM(t))
+	t.Setenv("GRAFANA_OIDC_CLIENT_SECRET", "grafana-secret")
+	t.Setenv("ARGOCD_OIDC_CLIENT_SECRET", "argocd-secret")
+	t.Setenv("TOM_EMAIL", "tom@example.test")
+	t.Setenv("MEL_EMAIL", "mel@example.test")
 	path := filepath.Join(t.TempDir(), "config.yaml")
 	if err := os.WriteFile(path, []byte(testConfigYAML()), 0o600); err != nil {
 		t.Fatalf("write config: %v", err)
@@ -226,7 +221,7 @@ func authorize(t *testing.T, app testApp, commonName, certPEM string, query url.
 	return redirect
 }
 
-func exchangeCode(t *testing.T, app testApp, clientID, secret, code, verifier string) service.TokenResponse {
+func exchangeCode(t *testing.T, app testApp, clientID, secret, code, verifier string) service.TokenResponse { //nolint:unparam
 	t.Helper()
 	form := url.Values{"grant_type": {"authorization_code"}, "code": {code}, "redirect_uri": {"https://grafana.example.test/login/generic_oauth"}}
 	if verifier != "" {
@@ -245,11 +240,7 @@ func exchangeCode(t *testing.T, app testApp, clientID, secret, code, verifier st
 
 func tokenRequest(t *testing.T, app testApp, clientID, secret string, form url.Values, useBasic bool) *httptest.ResponseRecorder {
 	t.Helper()
-	if useBasic {
-		if clientID != "" || secret != "" {
-			// keep form untouched for basic auth
-		}
-	} else if clientID != "" || secret != "" {
+	if !useBasic && (clientID != "" || secret != "") {
 		form.Set("client_id", clientID)
 		form.Set("client_secret", secret)
 	}
@@ -300,7 +291,7 @@ func serve(t *testing.T, handler http.Handler, req *http.Request) *httptest.Resp
 	return rec
 }
 
-func requestWithIdentity(t *testing.T, method, target, commonName, certPEM string, trusted bool, body *strings.Reader) *http.Request {
+func requestWithIdentity(t *testing.T, method, target, commonName, certPEM string, trusted bool, body *strings.Reader) *http.Request { //nolint:unparam
 	t.Helper()
 	var reader *strings.Reader
 	if body == nil {

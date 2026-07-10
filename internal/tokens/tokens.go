@@ -37,7 +37,7 @@ func New(cfg *config.Config, now func() time.Time) *Manager {
 	return &Manager{issuer: cfg.Issuer, skew: cfg.OAuth.IssuerClockSkew, keys: cfg.SigningKeys, active: *cfg.ActiveSigningKey, now: now}
 }
 
-func (m *Manager) SignIDToken(clientID string, user config.User, scopes []string, nonce string, authTime time.Time, ttl time.Duration) (string, error) {
+func (m *Manager) SignIDToken(clientID string, user config.User, _ []string, nonce string, authTime time.Time, ttl time.Duration) (string, error) {
 	claims := map[string]any{
 		"email":              user.Email,
 		"email_verified":     user.EmailVerified,
@@ -52,11 +52,11 @@ func (m *Manager) SignIDToken(clientID string, user config.User, scopes []string
 		claims["nonce"] = nonce
 	}
 	return m.sign(jwt.Claims{
-		Issuer:   m.issuer,
-		Subject:  user.Subject,
-		Audience: jwt.Audience{clientID},
-		IssuedAt: jwt.NewNumericDate(m.now()),
-		Expiry:   jwt.NewNumericDate(m.now().Add(ttl)),
+		Issuer:    m.issuer,
+		Subject:   user.Subject,
+		Audience:  jwt.Audience{clientID},
+		IssuedAt:  jwt.NewNumericDate(m.now()),
+		Expiry:    jwt.NewNumericDate(m.now().Add(ttl)),
 		NotBefore: jwt.NewNumericDate(m.now().Add(-m.skew)),
 	}, claims)
 }
@@ -64,11 +64,11 @@ func (m *Manager) SignIDToken(clientID string, user config.User, scopes []string
 func (m *Manager) SignAccessToken(clientID string, user config.User, scopes []string, authTime time.Time, ttl time.Duration) (string, error) {
 	claims := AccessClaims{
 		Claims: jwt.Claims{
-			Issuer:   m.issuer,
-			Subject:  user.Subject,
-			Audience: jwt.Audience{clientID},
-			IssuedAt: jwt.NewNumericDate(m.now()),
-			Expiry:   jwt.NewNumericDate(m.now().Add(ttl)),
+			Issuer:    m.issuer,
+			Subject:   user.Subject,
+			Audience:  jwt.Audience{clientID},
+			IssuedAt:  jwt.NewNumericDate(m.now()),
+			Expiry:    jwt.NewNumericDate(m.now().Add(ttl)),
 			NotBefore: jwt.NewNumericDate(m.now().Add(-m.skew)),
 		},
 		TokenUse:          "access_token",

@@ -2,4 +2,4 @@ package testutil
 
 import "testing"
 
-func TestHelpersCompile(t *testing.T) {}
+func TestHelpersCompile(_ *testing.T) {}

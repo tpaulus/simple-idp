@@ -20,22 +20,22 @@ import (
 const redacted = "REDACTED"
 
 type Config struct {
-	Issuer              string                    `yaml:"issuer"`
-	Endpoints           Endpoints                 `yaml:"endpoints"`
-	HTTP                HTTP                      `yaml:"http"`
-	ForwardedClientCert ForwardedClientCert       `yaml:"forwardedClientCert"`
-	OAuth               OAuth                     `yaml:"oauth"`
-	SigningKeys         []SigningKey              `yaml:"signingKeys"`
-	Clients             []Client                  `yaml:"clients"`
-	Users               []User                    `yaml:"users"`
-	TrustedProxyNets    []*net.IPNet              `yaml:"-"`
-	ClientCARoots       *x509.CertPool            `yaml:"-"`
-	ActiveSigningKey    *SigningKey               `yaml:"-"`
-	JWKS                jose.JSONWebKeySet        `yaml:"-"`
-	UserByCN            map[string]User           `yaml:"-"`
-	UserBySubject       map[string]User           `yaml:"-"`
-	ClientByID          map[string]Client         `yaml:"-"`
-	HasGroupsClaim      bool                      `yaml:"-"`
+	Issuer              string              `yaml:"issuer"`
+	Endpoints           Endpoints           `yaml:"endpoints"`
+	HTTP                HTTP                `yaml:"http"`
+	ForwardedClientCert ForwardedClientCert `yaml:"forwardedClientCert"`
+	OAuth               OAuth               `yaml:"oauth"`
+	SigningKeys         []SigningKey        `yaml:"signingKeys"`
+	Clients             []Client            `yaml:"clients"`
+	Users               []User              `yaml:"users"`
+	TrustedProxyNets    []*net.IPNet        `yaml:"-"`
+	ClientCARoots       *x509.CertPool      `yaml:"-"`
+	ActiveSigningKey    *SigningKey         `yaml:"-"`
+	JWKS                jose.JSONWebKeySet  `yaml:"-"`
+	UserByCN            map[string]User     `yaml:"-"`
+	UserBySubject       map[string]User     `yaml:"-"`
+	ClientByID          map[string]Client   `yaml:"-"`
+	HasGroupsClaim      bool                `yaml:"-"`
 }
 
 type Endpoints struct {
@@ -80,12 +80,12 @@ type OAuth struct {
 }
 
 type SigningKey struct {
-	KeyID         string           `yaml:"keyID"`
-	Algorithm     string           `yaml:"algorithm"`
-	PrivateKeyPEM string           `yaml:"privateKeyPem"`
-	Active        bool             `yaml:"active"`
-	PrivateKey    *rsa.PrivateKey  `yaml:"-"`
-	PublicJWK     jose.JSONWebKey  `yaml:"-"`
+	KeyID         string          `yaml:"keyID"`
+	Algorithm     string          `yaml:"algorithm"`
+	PrivateKeyPEM string          `yaml:"privateKeyPem"`
+	Active        bool            `yaml:"active"`
+	PrivateKey    *rsa.PrivateKey `yaml:"-"`
+	PublicJWK     jose.JSONWebKey `yaml:"-"`
 }
 
 type Client struct {
@@ -98,14 +98,14 @@ type Client struct {
 }
 
 type User struct {
-	ID                     string      `yaml:"id"`
-	Subject                string      `yaml:"subject"`
-	Email                  string      `yaml:"email"`
-	Name                   string      `yaml:"name"`
-	PreferredUsername      string      `yaml:"preferredUsername"`
-	EmailVerified          bool        `yaml:"emailVerified"`
-	CertificateCommonNames []string    `yaml:"certificateCommonNames"`
-	Claims                 UserClaims  `yaml:"claims"`
+	ID                     string     `yaml:"id"`
+	Subject                string     `yaml:"subject"`
+	Email                  string     `yaml:"email"`
+	Name                   string     `yaml:"name"`
+	PreferredUsername      string     `yaml:"preferredUsername"`
+	EmailVerified          bool       `yaml:"emailVerified"`
+	CertificateCommonNames []string   `yaml:"certificateCommonNames"`
+	Claims                 UserClaims `yaml:"claims"`
 }
 
 type UserClaims struct {
@@ -113,7 +113,7 @@ type UserClaims struct {
 }
 
 func Load(path string) (*Config, error) {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) //nolint:gosec
 	if err != nil {
 		return nil, fmt.Errorf("read config: %w", err)
 	}
@@ -166,24 +166,24 @@ func redactRef(v string) string {
 
 func (c *Config) resolveEnv() error {
 	var err error
-	c.ForwardedClientCert.CAPEM, err = resolveValue(c.ForwardedClientCert.CAPEM, false)
+	c.ForwardedClientCert.CAPEM, err = resolveValue(c.ForwardedClientCert.CAPEM)
 	if err != nil {
 		return fmt.Errorf("forwardedClientCert.caPem: %w", err)
 	}
 	for i := range c.SigningKeys {
-		c.SigningKeys[i].PrivateKeyPEM, err = resolveValue(c.SigningKeys[i].PrivateKeyPEM, false)
+		c.SigningKeys[i].PrivateKeyPEM, err = resolveValue(c.SigningKeys[i].PrivateKeyPEM)
 		if err != nil {
 			return fmt.Errorf("signingKeys[%d].privateKeyPem: %w", i, err)
 		}
 	}
 	for i := range c.Clients {
-		c.Clients[i].Secret, err = resolveValue(c.Clients[i].Secret, false)
+		c.Clients[i].Secret, err = resolveValue(c.Clients[i].Secret)
 		if err != nil {
 			return fmt.Errorf("clients[%d].secret: %w", i, err)
 		}
 	}
 	for i := range c.Users {
-		c.Users[i].Email, err = resolveValue(c.Users[i].Email, false)
+		c.Users[i].Email, err = resolveValue(c.Users[i].Email)
 		if err != nil {
 			return fmt.Errorf("users[%d].email: %w", i, err)
 		}
@@ -191,7 +191,7 @@ func (c *Config) resolveEnv() error {
 	return nil
 }
 
-func resolveValue(v string, allowEmpty bool) (string, error) {
+func resolveValue(v string) (string, error) {
 	if !strings.HasPrefix(v, "ENV:") {
 		return v, nil
 	}
@@ -203,7 +203,7 @@ func resolveValue(v string, allowEmpty bool) (string, error) {
 	if !ok {
 		return "", fmt.Errorf("missing env var %s", name)
 	}
-	if value == "" && !allowEmpty {
+	if value == "" {
 		return "", fmt.Errorf("empty env var %s", name)
 	}
 	return value, nil

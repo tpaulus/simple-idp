@@ -13,18 +13,11 @@ import (
 func TestLoadResolvesEnvAndRedactsSecrets(t *testing.T) {
 	caCert, _, caPEM := testutil.MustGenerateCA(t)
 	_ = caCert
-	os.Setenv("CLIENT_CA_CRT", caPEM)
-	os.Setenv("OIDC_SIGNING_KEY", testutil.MustGenerateRSAPrivateKeyPEM(t))
-	os.Setenv("GRAFANA_OIDC_CLIENT_SECRET", "super-secret")
-	os.Setenv("TOM_EMAIL", "tom@example.test")
-	os.Setenv("MEL_EMAIL", "mel@example.test")
-	t.Cleanup(func() {
-		os.Unsetenv("CLIENT_CA_CRT")
-		os.Unsetenv("OIDC_SIGNING_KEY")
-		os.Unsetenv("GRAFANA_OIDC_CLIENT_SECRET")
-		os.Unsetenv("TOM_EMAIL")
-		os.Unsetenv("MEL_EMAIL")
-	})
+	t.Setenv("CLIENT_CA_CRT", caPEM)
+	t.Setenv("OIDC_SIGNING_KEY", testutil.MustGenerateRSAPrivateKeyPEM(t))
+	t.Setenv("GRAFANA_OIDC_CLIENT_SECRET", "super-secret")
+	t.Setenv("TOM_EMAIL", "tom@example.test")
+	t.Setenv("MEL_EMAIL", "mel@example.test")
 
 	path := filepath.Join(t.TempDir(), "config.yaml")
 	if err := os.WriteFile(path, []byte(sampleConfig()), 0o600); err != nil {
@@ -45,22 +38,15 @@ func TestLoadResolvesEnvAndRedactsSecrets(t *testing.T) {
 		if strings.Contains(redacted, forbidden) {
 			t.Fatalf("redacted config leaked %q", forbidden)
 		}
-		}
+	}
 }
 
 func TestLoadRejectsDuplicateCertificateCommonName(t *testing.T) {
-	os.Setenv("CLIENT_CA_CRT", mustCA(t))
-	os.Setenv("OIDC_SIGNING_KEY", testutil.MustGenerateRSAPrivateKeyPEM(t))
-	os.Setenv("GRAFANA_OIDC_CLIENT_SECRET", "super-secret")
-	os.Setenv("TOM_EMAIL", "tom@example.test")
-	os.Setenv("MEL_EMAIL", "mel@example.test")
-	t.Cleanup(func() {
-		os.Unsetenv("CLIENT_CA_CRT")
-		os.Unsetenv("OIDC_SIGNING_KEY")
-		os.Unsetenv("GRAFANA_OIDC_CLIENT_SECRET")
-		os.Unsetenv("TOM_EMAIL")
-		os.Unsetenv("MEL_EMAIL")
-	})
+	t.Setenv("CLIENT_CA_CRT", mustCA(t))
+	t.Setenv("OIDC_SIGNING_KEY", testutil.MustGenerateRSAPrivateKeyPEM(t))
+	t.Setenv("GRAFANA_OIDC_CLIENT_SECRET", "super-secret")
+	t.Setenv("TOM_EMAIL", "tom@example.test")
+	t.Setenv("MEL_EMAIL", "mel@example.test")
 	path := filepath.Join(t.TempDir(), "config.yaml")
 	cfg := strings.Replace(sampleConfig(), "mel-iphone", "tom-laptop", 1)
 	if err := os.WriteFile(path, []byte(cfg), 0o600); err != nil {
