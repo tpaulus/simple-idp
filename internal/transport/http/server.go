@@ -21,7 +21,7 @@ func NewHandler(_ *config.Config, eps endpoint.Endpoints, logger *slog.Logger) h
 		writeJSON(w, http.StatusOK, eps.JWKS(r.Context()))
 	})
 	mux.HandleFunc("/authorize", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		if r.Method != http.MethodGet {
 			writeError(w, &service.HTTPError{Status: http.StatusMethodNotAllowed, Code: "method_not_allowed", Message: "method not allowed"})
 			return
 		}
