@@ -57,6 +57,50 @@ func TestLoadRejectsDuplicateCertificateCommonName(t *testing.T) {
 	}
 }
 
+func TestLoadDefaultsClientAllowedScopesInClientsAndLookup(t *testing.T) {
+	if err := os.Setenv("CLIENT_CA_CRT", mustCA(t)); err != nil {
+		t.Fatalf("set env: %v", err)
+	}
+	if err := os.Setenv("OIDC_SIGNING_KEY", testutil.MustGenerateRSAPrivateKeyPEM(t)); err != nil {
+		t.Fatalf("set env: %v", err)
+	}
+	if err := os.Setenv("GRAFANA_OIDC_CLIENT_SECRET", "super-secret"); err != nil {
+		t.Fatalf("set env: %v", err)
+	}
+	if err := os.Setenv("TOM_EMAIL", "tom@example.test"); err != nil {
+		t.Fatalf("set env: %v", err)
+	}
+	if err := os.Setenv("MEL_EMAIL", "mel@example.test"); err != nil {
+		t.Fatalf("set env: %v", err)
+	}
+	t.Cleanup(func() {
+		for _, name := range []string{"CLIENT_CA_CRT", "OIDC_SIGNING_KEY", "GRAFANA_OIDC_CLIENT_SECRET", "TOM_EMAIL", "MEL_EMAIL"} {
+			if err := os.Unsetenv(name); err != nil {
+				t.Fatalf("unset env: %v", err)
+			}
+		}
+	})
+
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	cfgText := strings.Replace(sampleConfig(), `    allowedScopes: ["openid", "profile", "email"]`+"\n", "", 1)
+	if err := os.WriteFile(path, []byte(cfgText), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	cfg, err := config.Load(path)
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+
+	want := strings.Join([]string{"openid", "profile", "email"}, ",")
+	if strings.Join(cfg.Clients[0].AllowedScopes, ",") != want {
+		t.Fatalf("unexpected client scopes: %#v", cfg.Clients[0].AllowedScopes)
+	}
+	if strings.Join(cfg.ClientByID["grafana"].AllowedScopes, ",") != want {
+		t.Fatalf("unexpected client lookup scopes: %#v", cfg.ClientByID["grafana"].AllowedScopes)
+	}
+}
+
 func mustCA(t *testing.T) string {
 	_, _, caPEM := testutil.MustGenerateCA(t)
 	return caPEM

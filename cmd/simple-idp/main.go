@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"golang.org/x/time/rate"
 
@@ -48,7 +49,7 @@ func main() {
 		CARoots:               cfg.ClientCARoots,
 	})
 	svc := service.New(cfg, auth, store.NewCodeStore(cfg.OAuth.MaxOutstandingCodes, nil), tokens.New(cfg, nil), nil)
-	eps := endpoint.New(svc, endpoint.NewIPRateLimiter(rate.Every(100000000), 10, nil), endpoint.NewIPRateLimiter(rate.Every(100000000), 10, nil))
+	eps := endpoint.New(svc, endpoint.NewIPRateLimiter(rate.Every(100*time.Millisecond), 10, nil), endpoint.NewIPRateLimiter(rate.Every(100*time.Millisecond), 10, nil))
 	handler := httptransport.NewHandler(cfg, eps, logger)
 	server := &http.Server{Addr: httpAddr, Handler: handler, ReadTimeout: cfg.HTTP.ReadTimeout, WriteTimeout: cfg.HTTP.WriteTimeout, IdleTimeout: cfg.HTTP.IdleTimeout, MaxHeaderBytes: cfg.HTTP.MaxHeaderBytes}
 	logger.Info("starting server", "addr", httpAddr)

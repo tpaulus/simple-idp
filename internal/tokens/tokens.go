@@ -71,24 +71,14 @@ func (m *Manager) SignAccessToken(clientID string, user config.User, scopes []st
 			Expiry:    jwt.NewNumericDate(m.now().Add(ttl)),
 			NotBefore: jwt.NewNumericDate(m.now().Add(-m.skew)),
 		},
-		TokenUse:          "access_token",
-		Scope:             joinScopes(scopes),
-		AuthTime:          authTime.Unix(),
-		Email:             user.Email,
-		EmailVerified:     user.EmailVerified,
-		Name:              user.Name,
-		PreferredUsername: user.PreferredUsername,
-		Groups:            user.Claims.Groups,
+		TokenUse: "access_token",
+		Scope:    joinScopes(scopes),
+		AuthTime: authTime.Unix(),
 	}
 	return m.sign(claims.Claims, map[string]any{
-		"token_use":          claims.TokenUse,
-		"scope":              claims.Scope,
-		"auth_time":          claims.AuthTime,
-		"email":              claims.Email,
-		"email_verified":     claims.EmailVerified,
-		"name":               claims.Name,
-		"preferred_username": claims.PreferredUsername,
-		"groups":             claims.Groups,
+		"token_use": claims.TokenUse,
+		"scope":     claims.Scope,
+		"auth_time": claims.AuthTime,
 	})
 }
 
@@ -121,6 +111,16 @@ func (m *Manager) VerifyAccessToken(raw string) (*AccessClaims, error) {
 			return nil, fmt.Errorf("invalid token use")
 		}
 		if len(claims.Audience) == 0 {
+			return nil, fmt.Errorf("missing audience")
+		}
+		hasAudience := false
+		for _, aud := range claims.Audience {
+			if aud != "" {
+				hasAudience = true
+				break
+			}
+		}
+		if !hasAudience {
 			return nil, fmt.Errorf("missing audience")
 		}
 		return &claims, nil

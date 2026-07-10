@@ -3,9 +3,12 @@ package tokens_test
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
+	jose "github.com/go-jose/go-jose/v4"
+	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/tpaulus/simple-idp/internal/config"
 	"github.com/tpaulus/simple-idp/internal/testutil"
 	"github.com/tpaulus/simple-idp/internal/tokens"
@@ -24,6 +27,39 @@ func TestVerifyAccessToken(t *testing.T) {
 	}
 	if claims.Subject != "user:tom" {
 		t.Fatalf("unexpected subject %q", claims.Subject)
+	}
+}
+
+func TestVerifyAccessTokenRejectsEmptyAudience(t *testing.T) {
+	cfg := loadTokenConfig(t)
+	manager := tokens.New(cfg, nil)
+
+	signer, err := jose.NewSigner(
+		jose.SigningKey{Algorithm: jose.RS256, Key: cfg.ActiveSigningKey.PrivateKey},
+		(&jose.SignerOptions{}).WithType("JWT").WithHeader("kid", cfg.ActiveSigningKey.KeyID),
+	)
+	if err != nil {
+		t.Fatalf("new signer: %v", err)
+	}
+
+	raw, err := jwt.Signed(signer).Claims(jwt.Claims{
+		Issuer:    cfg.Issuer,
+		Subject:   cfg.Users[0].Subject,
+		Audience:  jwt.Audience{""},
+		IssuedAt:  jwt.NewNumericDate(time.Now()),
+		Expiry:    jwt.NewNumericDate(time.Now().Add(cfg.OAuth.AccessTokenTTL)),
+		NotBefore: jwt.NewNumericDate(time.Now().Add(-cfg.OAuth.IssuerClockSkew)),
+	}).Claims(map[string]any{
+		"token_use": "access_token",
+		"scope":     "openid",
+		"auth_time": time.Now().Unix(),
+	}).Serialize()
+	if err != nil {
+		t.Fatalf("serialize token: %v", err)
+	}
+
+	if _, err := manager.VerifyAccessToken(raw); err == nil || !strings.Contains(err.Error(), "missing audience") {
+		t.Fatalf("expected missing audience error, got %v", err)
 	}
 }
 

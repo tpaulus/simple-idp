@@ -366,7 +366,8 @@ func (c *Config) validate() error {
 	}
 	clientIDs := map[string]struct{}{}
 	c.ClientByID = map[string]Client{}
-	for i, cl := range c.Clients {
+	for i := range c.Clients {
+		cl := c.Clients[i]
 		if cl.ID == "" || cl.Secret == "" {
 			return fmt.Errorf("clients[%d] is missing id or secret", i)
 		}
@@ -386,6 +387,7 @@ func (c *Config) validate() error {
 		}
 		if len(cl.AllowedScopes) == 0 {
 			cl.AllowedScopes = []string{"openid", "profile", "email"}
+			c.Clients[i].AllowedScopes = cl.AllowedScopes
 		}
 		if !slices.Contains(cl.AllowedScopes, "openid") {
 			return fmt.Errorf("client %q must allow openid scope", cl.ID)

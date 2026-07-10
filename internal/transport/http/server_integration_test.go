@@ -98,6 +98,12 @@ func TestRejectsInvalidRequests(t *testing.T) {
 			t.Fatalf("expected 400, got %d", rec.Code)
 		}
 	})
+	t.Run("authorize wrong method", func(t *testing.T) {
+		rec := serve(t, app.handler, requestWithIdentity(t, http.MethodPost, "/authorize?client_id=grafana&redirect_uri=https://grafana.example.test/login/generic_oauth&response_type=code&scope=openid", "tom-laptop", app.tomLaptopPEM, true, nil))
+		if rec.Code != http.StatusMethodNotAllowed {
+			t.Fatalf("expected 405, got %d", rec.Code)
+		}
+	})
 	t.Run("missing cert headers", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/authorize?client_id=grafana&redirect_uri=https://grafana.example.test/login/generic_oauth&response_type=code&scope=openid", nil)
 		req.RemoteAddr = "127.0.0.1:1234"
