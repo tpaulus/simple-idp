@@ -1,0 +1,59 @@
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+  packages: write
+  id-token: write
+  attestations: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ github.event.release.tag_name || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+      - name: Install cosign
+        run: go install github.com/sigstore/cosign/v2/cmd/cosign@v2.4.1
+      - name: Build and push release image
+        env:
+          IMAGE: ghcr.io/tpaulus/simple-idp
+        run: |
+          set -euo pipefail
+          docker buildx create --use --name simple-idp-release-builder || docker buildx use simple-idp-release-builder
+          docker buildx build \
+            --push \
+            --platform linux/amd64 \
+            --provenance=true \
+            --sbom=true \
+            --tag "$IMAGE:$VERSION" \
+            --tag "$IMAGE:sha-${{ github.sha }}" \
+            --tag "$IMAGE:latest" \
+            --build-arg VERSION="$VERSION" \
+            --build-arg REVISION="${{ github.sha }}" \
+            .
+      - name: Sign release image
+        env:
+          COSIGN_EXPERIMENTAL: "1"
+          IMAGE: ghcr.io/tpaulus/simple-idp:${{ env.VERSION }}
+        run: |
+          "$(go env GOPATH)/bin/cosign" sign --yes "$IMAGE"
+      - name: Write checksums
+        run: |
+          printf 'ghcr.io/tpaulus/simple-idp:%s\n' "$VERSION" | sha256sum > checksums.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-checksums
+          path: checksums.txt

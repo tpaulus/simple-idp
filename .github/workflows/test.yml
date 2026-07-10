@@ -1,0 +1,51 @@
+name: test
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Prepare sample secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          openssl genrsa -out signing.key 2048
+          openssl req -x509 -new -nodes -key signing.key -sha256 -days 1 -subj '/CN=test-ca' -out client-ca.crt
+          {
+            echo 'CLIENT_CA_CRT<<EOF'
+            cat client-ca.crt
+            echo EOF
+            echo 'OIDC_SIGNING_KEY<<EOF'
+            cat signing.key
+            echo EOF
+            echo 'GRAFANA_OIDC_CLIENT_SECRET=test-secret'
+            echo 'TOM_EMAIL=tom@example.test'
+            echo 'MEL_EMAIL=mel@example.test'
+          } >> "$GITHUB_ENV"
+      - name: Test
+        run: go test ./...
+      - name: Race test
+        run: go test -race ./...
+      - name: Coverage
+        run: go test ./... -coverprofile=coverage.out
+      - name: Vet
+        run: go vet ./...
+      - name: Validate config
+        run: go run ./cmd/simple-idp --config ./examples/config.yaml --validate-config >/tmp/redacted-config.yaml
+      - name: Build image
+        run: docker build .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage.out

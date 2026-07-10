@@ -1,0 +1,46 @@
+name: container
+
+on:
+  push:
+    tags-ignore: ['v*']
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+  attestations: write
+
+jobs:
+  container:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+      - name: Install cosign
+        run: go install github.com/sigstore/cosign/v2/cmd/cosign@v2.4.1
+      - name: Build and push image
+        env:
+          IMAGE: ghcr.io/tpaulus/simple-idp
+          SHA_TAG: sha-${{ github.sha }}
+        run: |
+          set -euo pipefail
+          docker buildx create --use --name simple-idp-builder || docker buildx use simple-idp-builder
+          docker buildx build \
+            --push \
+            --platform linux/amd64 \
+            --provenance=true \
+            --sbom=true \
+            --tag "$IMAGE:$SHA_TAG" \
+            --build-arg VERSION="$SHA_TAG" \
+            --build-arg REVISION="${{ github.sha }}" \
+            .
+      - name: Sign image
+        env:
+          COSIGN_EXPERIMENTAL: "1"
+          IMAGE: ghcr.io/tpaulus/simple-idp:sha-${{ github.sha }}
+        run: |
+          "$(go env GOPATH)/bin/cosign" sign --yes "$IMAGE"
