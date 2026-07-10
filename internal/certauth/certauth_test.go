@@ -44,6 +44,27 @@ func TestParseAndVerifyPEMCertificate(t *testing.T) {
 	}
 }
 
+func TestParseAndVerifyPEMCertificateAcceptsTraefikHeaderPEM(t *testing.T) {
+	ca, key, caPEM := testutil.MustGenerateCA(t)
+	roots := x509.NewCertPool()
+	roots.AppendCertsFromPEM([]byte(caPEM))
+	certPEM := testutil.MustGenerateClientCert(t, ca, key, "tom-laptop", time.Now().Add(-time.Minute), time.Now().Add(time.Hour), []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth})
+	traefikPEM := strings.NewReplacer(
+		"-----BEGIN CERTIFICATE-----", "",
+		"-----END CERTIFICATE-----", "",
+		"\n", "",
+		"\r", "",
+	).Replace(certPEM)
+
+	cert, err := ParseAndVerifyPEMCertificate(url.QueryEscape(traefikPEM), roots, time.Now())
+	if err != nil {
+		t.Fatalf("verify Traefik certificate header: %v", err)
+	}
+	if cert.Subject.CommonName != "tom-laptop" {
+		t.Fatalf("unexpected CN %q", cert.Subject.CommonName)
+	}
+}
+
 func TestParseAndVerifyPEMCertificateRejectsExpiredCertificate(t *testing.T) {
 	ca, key, caPEM := testutil.MustGenerateCA(t)
 	roots := x509.NewCertPool()

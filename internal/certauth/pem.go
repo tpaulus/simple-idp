@@ -20,6 +20,7 @@ func ParseAndVerifyPEMCertificate(raw string, roots *x509.CertPool, now time.Tim
 			decoded = unescaped
 		}
 	}
+	decoded = normalizeForwardedPEM(decoded)
 	block, rest := pem.Decode([]byte(decoded))
 	if block == nil || block.Type != "CERTIFICATE" {
 		return nil, errors.New("invalid forwarded client certificate")
@@ -35,4 +36,35 @@ func ParseAndVerifyPEMCertificate(raw string, roots *x509.CertPool, now time.Tim
 		return nil, fmt.Errorf("verify forwarded client certificate: %w", err)
 	}
 	return cert, nil
+}
+
+func normalizeForwardedPEM(value string) string {
+	value = strings.TrimSpace(value)
+	if strings.Contains(value, "-----BEGIN CERTIFICATE-----") {
+		return value
+	}
+	if strings.Contains(value, ",") {
+		return value
+	}
+	compact := strings.Map(func(r rune) rune {
+		switch r {
+		case '\r', '\n', '\t', ' ':
+			return -1
+		default:
+			return r
+		}
+	}, value)
+	if compact == "" {
+		return value
+	}
+	var b strings.Builder
+	b.WriteString("-----BEGIN CERTIFICATE-----\n")
+	for len(compact) > 64 {
+		b.WriteString(compact[:64])
+		b.WriteByte('\n')
+		compact = compact[64:]
+	}
+	b.WriteString(compact)
+	b.WriteString("\n-----END CERTIFICATE-----\n")
+	return b.String()
 }
