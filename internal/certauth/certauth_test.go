@@ -93,6 +93,33 @@ func TestParseAndVerifyPEMCertificateAcceptsEscapedPEMWithLiteralPlus(t *testing
 	}
 }
 
+func TestParseAndVerifyPEMCertificateAcceptsTraefikCompactCertificateChain(t *testing.T) {
+	ca, key, caPEM := testutil.MustGenerateCA(t)
+	roots := x509.NewCertPool()
+	roots.AppendCertsFromPEM([]byte(caPEM))
+	certPEM := testutil.MustGenerateClientCert(t, ca, key, "tom-laptop", time.Now().Add(-time.Minute), time.Now().Add(time.Hour), []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth})
+	compactClient := strings.NewReplacer(
+		"-----BEGIN CERTIFICATE-----", "",
+		"-----END CERTIFICATE-----", "",
+		"\n", "",
+		"\r", "",
+	).Replace(certPEM)
+	compactCA := strings.NewReplacer(
+		"-----BEGIN CERTIFICATE-----", "",
+		"-----END CERTIFICATE-----", "",
+		"\n", "",
+		"\r", "",
+	).Replace(caPEM)
+
+	cert, err := ParseAndVerifyPEMCertificate(compactClient+","+compactCA, roots, time.Now())
+	if err != nil {
+		t.Fatalf("verify compact certificate chain: %v", err)
+	}
+	if cert.Subject.CommonName != "tom-laptop" {
+		t.Fatalf("unexpected CN %q", cert.Subject.CommonName)
+	}
+}
+
 func TestParseAndVerifyPEMCertificateRejectsExpiredCertificate(t *testing.T) {
 	ca, key, caPEM := testutil.MustGenerateCA(t)
 	roots := x509.NewCertPool()

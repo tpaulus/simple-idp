@@ -46,10 +46,10 @@ func normalizePEMMarkers(value string) string {
 
 func normalizeForwardedPEM(value string) string {
 	value = strings.TrimSpace(value)
-	if strings.Contains(value, "-----BEGIN CERTIFICATE-----") {
-		return value
+	if before, _, ok := strings.Cut(value, ","); ok {
+		value = strings.TrimSpace(before)
 	}
-	if strings.Contains(value, ",") {
+	if strings.Contains(value, "-----BEGIN CERTIFICATE-----") {
 		return value
 	}
 	compact := strings.Map(func(r rune) rune {
