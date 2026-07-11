@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"strings"
 
@@ -13,7 +14,7 @@ import (
 	"github.com/tpaulus/simple-idp/internal/service"
 )
 
-func NewHandler(_ *config.Config, eps endpoint.Endpoints, logger *slog.Logger) http.Handler {
+func NewHandler(cfg *config.Config, eps endpoint.Endpoints, logger *slog.Logger) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, r *http.Request) {
 		resp, err := eps.Discovery(r.Context(), struct{}{})
@@ -108,7 +109,7 @@ func NewHandler(_ *config.Config, eps endpoint.Endpoints, logger *slog.Logger) h
 	mux.HandleFunc("/oidc/v1/end_session", func(w http.ResponseWriter, r *http.Request) { logoutHandler(w, r, eps) })
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) { writeText(w, http.StatusOK, "ok\n") })
 	mux.HandleFunc("/readyz", func(w http.ResponseWriter, _ *http.Request) { writeText(w, http.StatusOK, "ready\n") })
-	return loggingMiddleware(logger, secureHeaders(mux))
+	return loggingMiddleware(logger, cfg, secureHeaders(mux))
 }
 
 func logoutHandler(w http.ResponseWriter, r *http.Request, eps endpoint.Endpoints) {
@@ -151,13 +152,39 @@ func secureHeaders(next http.Handler) http.Handler {
 	})
 }
 
-func loggingMiddleware(logger *slog.Logger, next http.Handler) http.Handler {
+func loggingMiddleware(logger *slog.Logger, cfg *config.Config, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		requestLogger := observability.WithRequest(logger, r.Method, r.URL.Path, r.RemoteAddr)
+		addr := clientIP(r, cfg.TrustedProxyNets)
+		requestLogger := observability.WithRequest(logger, r.Method, r.URL.Path, addr)
 		requestLogger.Info("request")
 		r = r.WithContext(observability.ContextWithLogger(r.Context(), requestLogger))
 		next.ServeHTTP(w, r)
 	})
+}
+
+// clientIP returns the client IP address for logging. When the immediate
+// remote address belongs to a trusted proxy and an X-Forwarded-For header is
+// present, the leftmost (original client) entry in that header is returned
+// instead.
+func clientIP(r *http.Request, trustedNets []*net.IPNet) string {
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		host = r.RemoteAddr
+	}
+	ip := net.ParseIP(host)
+	if ip != nil {
+		for _, cidr := range trustedNets {
+			if cidr.Contains(ip) {
+				if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+					if client := strings.TrimSpace(strings.SplitN(xff, ",", 2)[0]); client != "" {
+						return client
+					}
+				}
+				break
+			}
+		}
+	}
+	return r.RemoteAddr
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
