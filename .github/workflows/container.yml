@@ -38,9 +38,16 @@ jobs:
             --tag "$IMAGE:$SHA_TAG" \
             --build-arg VERSION="$SHA_TAG" \
             --build-arg REVISION="${{ github.sha }}" \
+            --metadata-file "${{ runner.temp }}/build-metadata.json" \
             .
       - name: Sign image
         env:
           COSIGN_EXPERIMENTAL: "1"
-          IMAGE: ghcr.io/tpaulus/simple-idp:sha-${{ github.sha }}
-        run: cosign sign --yes "$IMAGE"
+          IMAGE: ghcr.io/tpaulus/simple-idp
+        run: |
+          DIGEST=$(jq -r '."containerimage.digest"' "${{ runner.temp }}/build-metadata.json")
+          if [[ -z "$DIGEST" || "$DIGEST" == "null" ]]; then
+            echo "Error: could not extract image digest from build metadata" >&2
+            exit 1
+          fi
+          cosign sign --yes "$IMAGE@$DIGEST"
