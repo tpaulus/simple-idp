@@ -16,8 +16,8 @@ func ParseAndVerifyPEMCertificate(raw string, roots *x509.CertPool, now time.Tim
 	}
 	decoded := raw
 	if strings.Contains(raw, "%") {
-		if unescaped, err := url.QueryUnescape(raw); err == nil {
-			decoded = unescaped
+		if unescaped, err := url.PathUnescape(raw); err == nil {
+			decoded = normalizePEMMarkers(unescaped)
 		}
 	}
 	decoded = normalizeForwardedPEM(decoded)
@@ -36,6 +36,12 @@ func ParseAndVerifyPEMCertificate(raw string, roots *x509.CertPool, now time.Tim
 		return nil, fmt.Errorf("verify forwarded client certificate: %w", err)
 	}
 	return cert, nil
+}
+
+func normalizePEMMarkers(value string) string {
+	value = strings.ReplaceAll(value, "-----BEGIN+CERTIFICATE-----", "-----BEGIN CERTIFICATE-----")
+	value = strings.ReplaceAll(value, "-----END+CERTIFICATE-----", "-----END CERTIFICATE-----")
+	return value
 }
 
 func normalizeForwardedPEM(value string) string {

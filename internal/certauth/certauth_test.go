@@ -68,6 +68,31 @@ func TestParseAndVerifyPEMCertificateAcceptsTraefikHeaderPEM(t *testing.T) {
 	}
 }
 
+func TestParseAndVerifyPEMCertificateAcceptsEscapedPEMWithLiteralPlus(t *testing.T) {
+	ca, key, caPEM := testutil.MustGenerateCA(t)
+	roots := x509.NewCertPool()
+	roots.AppendCertsFromPEM([]byte(caPEM))
+	var certPEM string
+	for i := 0; i < 100; i++ {
+		certPEM = testutil.MustGenerateClientCert(t, ca, key, "tom-laptop", time.Now().Add(-time.Minute), time.Now().Add(time.Hour), []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth})
+		if strings.Contains(certPEM, "+") {
+			break
+		}
+	}
+	if !strings.Contains(certPEM, "+") {
+		t.Fatal("generated certificate PEM did not contain a literal plus")
+	}
+	escapedPEM := strings.ReplaceAll(certPEM, "\n", "%0A")
+
+	cert, err := ParseAndVerifyPEMCertificate(escapedPEM, roots, time.Now())
+	if err != nil {
+		t.Fatalf("verify escaped PEM with literal plus: %v", err)
+	}
+	if cert.Subject.CommonName != "tom-laptop" {
+		t.Fatalf("unexpected CN %q", cert.Subject.CommonName)
+	}
+}
+
 func TestParseAndVerifyPEMCertificateRejectsExpiredCertificate(t *testing.T) {
 	ca, key, caPEM := testutil.MustGenerateCA(t)
 	roots := x509.NewCertPool()
