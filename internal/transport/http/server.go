@@ -9,6 +9,7 @@ import (
 
 	"github.com/tpaulus/simple-idp/internal/config"
 	"github.com/tpaulus/simple-idp/internal/endpoint"
+	"github.com/tpaulus/simple-idp/internal/observability"
 	"github.com/tpaulus/simple-idp/internal/service"
 )
 
@@ -152,7 +153,9 @@ func secureHeaders(next http.Handler) http.Handler {
 
 func loggingMiddleware(logger *slog.Logger, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		logger.Info("request", "method", r.Method, "path", r.URL.Path, "remote_addr", r.RemoteAddr)
+		requestLogger := observability.WithRequest(logger, r.Method, r.URL.Path, r.RemoteAddr)
+		requestLogger.Info("request")
+		r = r.WithContext(observability.ContextWithLogger(r.Context(), requestLogger))
 		next.ServeHTTP(w, r)
 	})
 }

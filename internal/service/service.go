@@ -15,6 +15,7 @@ import (
 	"github.com/tpaulus/simple-idp/internal/certauth"
 	"github.com/tpaulus/simple-idp/internal/config"
 	"github.com/tpaulus/simple-idp/internal/oauth"
+	"github.com/tpaulus/simple-idp/internal/observability"
 	"github.com/tpaulus/simple-idp/internal/store"
 	"github.com/tpaulus/simple-idp/internal/tokens"
 )
@@ -111,7 +112,7 @@ func (s *Service) Discovery(_ context.Context) map[string]any {
 
 func (s *Service) JWKS(_ context.Context) jose.JSONWebKeySet { return s.cfg.JWKS }
 
-func (s *Service) Authorize(_ context.Context, req AuthorizeRequest) (*AuthorizeResponse, error) {
+func (s *Service) Authorize(ctx context.Context, req AuthorizeRequest) (*AuthorizeResponse, error) {
 	client, ok := s.cfg.ClientByID[req.ClientID]
 	if !ok {
 		return nil, badRequest("invalid_client", "invalid client")
@@ -142,10 +143,12 @@ func (s *Service) Authorize(_ context.Context, req AuthorizeRequest) (*Authorize
 	}
 	cn, err := s.auth.Authenticate(req.HTTPRequest)
 	if err != nil {
+		s.logClientCertificateAuthFailure(ctx, req.HTTPRequest, "authenticate", "", err)
 		return nil, unauthorized("client certificate identity required")
 	}
 	user, ok := s.cfg.UserByCN[cn]
 	if !ok {
+		s.logClientCertificateAuthFailure(ctx, req.HTTPRequest, "unknown_common_name", cn, nil)
 		return nil, unauthorized("client certificate identity required")
 	}
 	code, hash, err := oauth.GenerateCode()
@@ -174,6 +177,28 @@ func (s *Service) Authorize(_ context.Context, req AuthorizeRequest) (*Authorize
 	}
 	redirect.RawQuery = q.Encode()
 	return &AuthorizeResponse{RedirectURL: redirect.String()}, nil
+}
+
+func (s *Service) logClientCertificateAuthFailure(ctx context.Context, r *http.Request, phase, commonName string, err error) {
+	if r == nil {
+		observability.LoggerFromContext(ctx).Warn("client certificate auth failed", "phase", phase, "common_name", commonName)
+		return
+	}
+	pemHeader := s.cfg.ForwardedClientCert.PEMHeader
+	infoHeader := s.cfg.ForwardedClientCert.InfoHeader
+	attrs := []any{
+		"phase", phase,
+		"common_name", commonName,
+		"pem_header_present", r.Header.Get(pemHeader) != "",
+		"pem_header_len", len(r.Header.Get(pemHeader)),
+		"info_header_present", r.Header.Get(infoHeader) != "",
+		"info_header_len", len(r.Header.Get(infoHeader)),
+		"x_forwarded_for", r.Header.Get("X-Forwarded-For"),
+	}
+	if err != nil {
+		attrs = append(attrs, "error", err.Error())
+	}
+	observability.LoggerFromContext(ctx).Warn("client certificate auth failed", attrs...)
 }
 
 func (s *Service) Token(_ context.Context, req TokenRequest) (*TokenResponse, error) {
