@@ -23,10 +23,13 @@ func TestParseInfoCommonName(t *testing.T) {
 	}
 }
 
-func TestParseInfoCommonNameRejectsDuplicateSubject(t *testing.T) {
-	_, err := ParseInfoCommonName(url.QueryEscape(`Subject="CN=tom-laptop";Subject="CN=mel-laptop"`))
-	if err == nil || !strings.Contains(err.Error(), "duplicate key") {
-		t.Fatalf("expected duplicate key error, got %v", err)
+func TestParseInfoCommonNameUsesFirstSubject(t *testing.T) {
+	cn, err := ParseInfoCommonName(url.QueryEscape(`Subject="CN=tom-laptop",Subject="CN=Traefik mTLS Client CA"`))
+	if err != nil {
+		t.Fatalf("parse info: %v", err)
+	}
+	if cn != "tom-laptop" {
+		t.Fatalf("unexpected CN %q", cn)
 	}
 }
 

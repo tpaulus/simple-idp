@@ -162,6 +162,9 @@ func parsePairs(s string) (map[string]string, error) {
 		}
 	done:
 		if _, exists := out[key]; exists {
+			if key == "Subject" {
+				continue
+			}
 			return nil, fmt.Errorf("duplicate key %q", key)
 		}
 		out[key] = strings.TrimSpace(value.String())
