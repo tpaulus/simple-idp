@@ -149,7 +149,7 @@ func (s *Service) Authorize(ctx context.Context, req AuthorizeRequest) (*Authori
 	user, ok := s.cfg.UserByCN[cn]
 	if !ok {
 		s.logClientCertificateAuthFailure(ctx, req.HTTPRequest, "unknown_common_name", cn, nil)
-		return nil, unauthorized("client certificate identity required")
+		return nil, unauthorized("client certificate identity is not mapped to a principal")
 	}
 	code, hash, err := oauth.GenerateCode()
 	if err != nil {

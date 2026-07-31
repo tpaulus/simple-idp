@@ -118,6 +118,19 @@ func TestRejectsInvalidRequests(t *testing.T) {
 			t.Fatalf("expected 401, got %d", rec.Code)
 		}
 	})
+	t.Run("unmapped cert identity", func(t *testing.T) {
+		rec := serve(t, app.handler, requestWithIdentity(t, http.MethodGet, "/authorize?client_id=grafana&redirect_uri=https://grafana.example.test/login/generic_oauth&response_type=code&scope=openid", "tom-ipad", app.tomIPadPEM, true, nil))
+		if rec.Code != http.StatusUnauthorized {
+			t.Fatalf("expected 401, got %d", rec.Code)
+		}
+		var body map[string]string
+		if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+			t.Fatalf("decode error response: %v", err)
+		}
+		if body["error"] != "unauthorized" || body["error_description"] != "client certificate identity is not mapped to a principal" {
+			t.Fatalf("unexpected error response: %#v", body)
+		}
+	})
 	t.Run("code reuse", func(t *testing.T) {
 		code := authorize(t, app, "mel-laptop", app.melLaptopPEM, baseAuthorizeQuery()).Query().Get("code")
 		_ = exchangeCode(t, app, "grafana", "grafana-secret", code, "")
@@ -182,6 +195,7 @@ type testApp struct {
 	codes        *store.CodeStore
 	tomLaptopPEM string
 	tomIPhonePEM string
+	tomIPadPEM   string
 	melLaptopPEM string
 }
 
@@ -190,6 +204,7 @@ func newTestApp(t *testing.T) testApp {
 	ca, caKey, caPEM := testutil.MustGenerateCA(t)
 	tomLaptop := testutil.MustGenerateClientCert(t, ca, caKey, "tom-laptop", time.Now().Add(-time.Minute), time.Now().Add(time.Hour), []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth})
 	tomIPhone := testutil.MustGenerateClientCert(t, ca, caKey, "tom-iphone", time.Now().Add(-time.Minute), time.Now().Add(time.Hour), []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth})
+	tomIPad := testutil.MustGenerateClientCert(t, ca, caKey, "tom-ipad", time.Now().Add(-time.Minute), time.Now().Add(time.Hour), []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth})
 	melLaptop := testutil.MustGenerateClientCert(t, ca, caKey, "mel-laptop", time.Now().Add(-time.Minute), time.Now().Add(time.Hour), []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth})
 	t.Setenv("CLIENT_CA_CRT", caPEM)
 	t.Setenv("OIDC_SIGNING_KEY", testutil.MustGenerateRSAPrivateKeyPEM(t))
@@ -210,7 +225,7 @@ func newTestApp(t *testing.T) testApp {
 	svc := service.New(cfg, auth, codes, tokens.New(cfg, nil), nil)
 	eps := endpoint.New(svc, endpoint.NewIPRateLimiter(rate.Every(time.Millisecond), 100, nil), endpoint.NewIPRateLimiter(rate.Every(time.Millisecond), 100, nil))
 	handler := httptransport.NewHandler(cfg, eps, slog.New(slog.NewTextHandler(bytes.NewBuffer(nil), nil)))
-	return testApp{cfg: cfg, handler: handler, codes: codes, tomLaptopPEM: tomLaptop, tomIPhonePEM: tomIPhone, melLaptopPEM: melLaptop}
+	return testApp{cfg: cfg, handler: handler, codes: codes, tomLaptopPEM: tomLaptop, tomIPhonePEM: tomIPhone, tomIPadPEM: tomIPad, melLaptopPEM: melLaptop}
 }
 
 func authorize(t *testing.T, app testApp, commonName, certPEM string, query url.Values) *url.URL {
