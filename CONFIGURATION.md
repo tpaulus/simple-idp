@@ -67,6 +67,6 @@ Inactive signing keys stay in JWKS so older tokens can still validate until they
 
 ## Static users and clients
 
-Users are keyed by stable subjects and one or more certificate common names. Clients use exact redirect URI and post-logout redirect URI matching.
+Users are keyed by stable subjects and one or more certificate common names. Clients use exact redirect URI and post-logout redirect URI matching. Redirect URIs may use private-use schemes for native apps, such as `app.example:///oauth-callback`; HTTP and HTTPS redirect URIs must include a host, and fragments are not allowed.
 
 See `examples/config.yaml` for a complete sample.

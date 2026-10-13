@@ -101,6 +101,42 @@ func TestLoadDefaultsClientAllowedScopesInClientsAndLookup(t *testing.T) {
 	}
 }
 
+func TestLoadAcceptsPrivateUseRedirectURI(t *testing.T) {
+	cfg, err := loadWithRedirectURI(t, "app.immich:///oauth-callback")
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	if got := cfg.Clients[0].RedirectURIs[0]; got != "app.immich:///oauth-callback" {
+		t.Fatalf("unexpected redirect URI: %q", got)
+	}
+}
+
+func TestLoadRejectsHTTPRedirectURIWithoutHost(t *testing.T) {
+	for _, redirectURI := range []string{"https:///oauth-callback", "HTTPS:///oauth-callback"} {
+		t.Run(redirectURI, func(t *testing.T) {
+			if _, err := loadWithRedirectURI(t, redirectURI); err == nil || !strings.Contains(err.Error(), "must include a host") {
+				t.Fatalf("expected missing host error, got %v", err)
+			}
+		})
+	}
+}
+
+func loadWithRedirectURI(t *testing.T, redirectURI string) (*config.Config, error) {
+	t.Helper()
+	t.Setenv("CLIENT_CA_CRT", mustCA(t))
+	t.Setenv("OIDC_SIGNING_KEY", testutil.MustGenerateRSAPrivateKeyPEM(t))
+	t.Setenv("GRAFANA_OIDC_CLIENT_SECRET", "super-secret")
+	t.Setenv("TOM_EMAIL", "tom@example.test")
+	t.Setenv("MEL_EMAIL", "mel@example.test")
+
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	cfgText := strings.Replace(sampleConfig(), "https://grafana.example.test/login/generic_oauth", redirectURI, 1)
+	if err := os.WriteFile(path, []byte(cfgText), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	return config.Load(path)
+}
+
 func mustCA(t *testing.T) string {
 	_, _, caPEM := testutil.MustGenerateCA(t)
 	return caPEM

@@ -376,12 +376,12 @@ func (c *Config) validate() error {
 		}
 		clientIDs[cl.ID] = struct{}{}
 		for _, u := range cl.RedirectURIs {
-			if err := requireURL("redirectURI", u); err != nil {
+			if err := requireRedirectURI("redirectURI", u); err != nil {
 				return err
 			}
 		}
 		for _, u := range cl.PostLogoutRedirectURIs {
-			if err := requireURL("postLogoutRedirectURI", u); err != nil {
+			if err := requireRedirectURI("postLogoutRedirectURI", u); err != nil {
 				return err
 			}
 		}
@@ -402,6 +402,23 @@ func defaultString(v, fallback string) string {
 		return fallback
 	}
 	return v
+}
+
+func requireRedirectURI(name, raw string) error {
+	if raw == "" {
+		return fmt.Errorf("%s is required", name)
+	}
+	u, err := url.Parse(raw)
+	if err != nil || !u.IsAbs() {
+		return fmt.Errorf("%s must be an absolute URI", name)
+	}
+	if (strings.EqualFold(u.Scheme, "http") || strings.EqualFold(u.Scheme, "https")) && u.Host == "" {
+		return fmt.Errorf("%s must include a host", name)
+	}
+	if u.Fragment != "" {
+		return fmt.Errorf("%s must not contain fragments", name)
+	}
+	return nil
 }
 
 func requireURL(name, raw string) error {
